@@ -25,9 +25,6 @@
     "prepublishOnly": "npm run build"
   },
   "private": false,
-  "files": [
-    "lib/*"
-  ],
   "dependencies": {
     "event-to-promise": "^0.8.0",
     "xmlrpc": "^1.3.2"
