@@ -26,7 +26,7 @@
   },
   "private": false,
   "files": [
-    "./lib"
+    "lib/*"
   ],
   "dependencies": {
     "event-to-promise": "^0.8.0",
