@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["es2019", "es2020.promise", "es2020.bigint", "es2020.string"],
+    "module": "commonjs",
+    "target": "es2019",
+    "declaration": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,        
+    "outDir": "./lib/cjs"
+  },
+  "include": [
+    "src/"
+  ],
+  "exclude": [
+    "./test/*",
+    "./lib",
+    "node_modules"
+  ]
+}
