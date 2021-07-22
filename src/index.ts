@@ -1,9 +1,11 @@
 import { EventEmitter as Events } from "events";
 import * as net from "net";
-import eventToPromise from "event-to-promise";
+
 import { Readable } from "stream";
 const Serializer = require("xmlrpc/lib/serializer");
 const Deserializer = require("xmlrpc/lib/deserializer");
+const { fromEvent } = require('promise-toolbox');
+
 export class GbxClient extends Events {
   host: string;
   port: number;
@@ -39,7 +41,7 @@ export class GbxClient extends Events {
     this.port = port || 5000;
     this.socket = net.connect(this.port, this.host);
     this.setupListeners();
-    return await eventToPromise(this, "connect");
+    return await fromEvent(this, "connect");
   }
 
   private setupListeners() {
@@ -150,7 +152,7 @@ export class GbxClient extends Events {
     buf.writeUInt32LE(this.reqHandle, 4);
     buf.write(xml, 8);
     this.socket?.write(buf, "utf8");
-    let response = await eventToPromise(this, `response:${this.reqHandle}`);
+    let response = await fromEvent(this, `response:${this.reqHandle}`);
 
     if (response[1]) {
       throw response[1];
@@ -164,7 +166,7 @@ export class GbxClient extends Events {
    * @memberof GbxClient
    */
   async disconnect(): Promise<true> {
-    this.socket?.end();
+    this.socket?.destroy();
     this.isConnected = false;
     return true;
   }
