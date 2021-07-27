@@ -4,7 +4,7 @@ import * as net from "net";
 import { Readable } from "stream";
 const Serializer = require("xmlrpc/lib/serializer");
 const Deserializer = require("xmlrpc/lib/deserializer");
-const { fromEvent } = require('promise-toolbox');
+const { fromEvent } = require("promise-toolbox");
 
 export class GbxClient extends Events {
   host: string;
@@ -28,7 +28,7 @@ export class GbxClient extends Events {
 
   /**
    * Connects to trackmania server
-   * supports currently trackamanias with GBXRemote 2 protocol:
+   * Supports currently Trackmanias with GBXRemote 2 protocol:
    * Trackmania Nations Forever / Maniaplanet / Trackmania 2020
    *
    * @param {string} [host]
@@ -45,27 +45,31 @@ export class GbxClient extends Events {
   }
 
   private setupListeners() {
+    this.socket?.on("end", () => {
+      this.isConnected = false;
+      this.emit("connect", false);
+    });
+
     this.socket?.on("data", (data) => {
-      // first datas, handshake
-      if (this.isConnected == false) {
-        let headerSize = data.readUIntLE(0, 4);
-        let header = data.slice(4).toString();
+      if (this.isConnected === false) {
+        const headerSize = data.readUIntLE(0, 4);
+        const header = data.slice(4).toString();
         if (header.length !== headerSize && header !== "GBXRemote 2") {
-          this.socket?.end();
-          console.log("handshake mismatch");
+          this.socket?.destroy();
+          this.isConnected = false;
+          this.socket = null;
           this.emit("connect", false);
-          process.exit(0);
         }
         this.isConnected = true;
         this.emit("connect", true);
         return;
       }
 
-      let responseLength = data.readUInt32LE(0);
-      let requestHandle = data.readUInt32LE(4);
-      let response = data.slice(8).toString();
+      // const responseLength = data.readUInt32LE(0);
+      const requestHandle = data.readUInt32LE(4);
+      const response = data.slice(8).toString();
       // console.log(responseLength, requestHandle, response);
-      let deserializer = new Deserializer();
+      const deserializer = new Deserializer();
       if (requestHandle > 0x80000000) {
         deserializer.deserializeMethodResponse(
           Readable.from(response),
@@ -94,7 +98,7 @@ export class GbxClient extends Events {
    * @memberof GbxClient
    */
   async call(method: string, ...params: any) {
-    let xml = Serializer.serializeMethodCall(method, params);
+    const xml = Serializer.serializeMethodCall(method, params);
     return await this.query(xml);
   }
 
@@ -124,14 +128,14 @@ export class GbxClient extends Events {
    * @memberof GbxClient
    */
   async multicall(methods: Array<any>) {
-    let params: any = [];
+    const params: any = [];
     for (let method of methods) {
       params.push({ methodName: method.shift(), params: method });
     }
 
-    let xml = Serializer.serializeMethodCall("system.multicall", [params]);
+    const xml = Serializer.serializeMethodCall("system.multicall", [params]);
 
-    let out = [];
+    const out = [];
     for (let answer of await this.query(xml)) {
       out.push(answer[0]);
     }
@@ -141,24 +145,27 @@ export class GbxClient extends Events {
   private async query(xml: string) {
     // if request is more than 4mb
     if (xml.length + 8 > 4 * 1024 * 1024) {
-      return new Error(
+      throw new Error(
         "transport error - request too large (" + xml.length + ")"
       );
     }
     this.reqHandle++;
-    let len = Buffer.byteLength(xml);
-    let buf = Buffer.alloc(8 + len);
+    if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;
+    const len = Buffer.byteLength(xml);
+    const buf = Buffer.alloc(8 + len);
     buf.writeInt32LE(len, 0);
     buf.writeUInt32LE(this.reqHandle, 4);
     buf.write(xml, 8);
     this.socket?.write(buf, "utf8");
-    let response = await fromEvent(this, `response:${this.reqHandle}`);
+    const response = await fromEvent(this, `response:${this.reqHandle}`);
 
     if (response[1]) {
       throw response[1];
     }
+
     return response[0];
   }
+
   /**
    * Disconnect
    *
@@ -168,6 +175,7 @@ export class GbxClient extends Events {
   async disconnect(): Promise<true> {
     this.socket?.destroy();
     this.isConnected = false;
+    this.emit("connect", false);
     return true;
   }
 }
