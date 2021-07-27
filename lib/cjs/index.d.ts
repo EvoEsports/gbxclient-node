@@ -6,6 +6,9 @@ export declare class GbxClient extends Events {
     isConnected: boolean;
     reqHandle: number;
     private socket;
+    recvData: null | Buffer;
+    responseLength: null | number;
+    requestHandle: number;
     /**
      * Creates an instance of GbxClient.
      * @memberof GbxClient
@@ -13,7 +16,7 @@ export declare class GbxClient extends Events {
     constructor();
     /**
      * Connects to trackmania server
-     * supports currently trackamanias with GBXRemote 2 protocol:
+     * Supports currently Trackmanias with GBXRemote 2 protocol:
      * Trackmania Nations Forever / Maniaplanet / Trackmania 2020
      *
      * @param {string} [host]

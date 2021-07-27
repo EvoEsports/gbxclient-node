@@ -12,6 +12,9 @@ export class GbxClient extends Events {
   isConnected: boolean;
   reqHandle: number;
   private socket: net.Socket | null;
+  recvData: null | Buffer;
+  responseLength: null | number;
+  requestHandle: number;
 
   /**
    * Creates an instance of GbxClient.
@@ -24,6 +27,9 @@ export class GbxClient extends Events {
     this.host = "";
     this.port = 5000;
     this.socket = null;
+    this.recvData = null;
+    this.responseLength = null;
+    this.requestHandle = 0;
   }
 
   /**
@@ -40,6 +46,7 @@ export class GbxClient extends Events {
     this.host = host || "127.0.0.1";
     this.port = port || 5000;
     this.socket = net.connect(this.port, this.host);
+    this.socket.setKeepAlive(true);
     this.setupListeners();
     return await fromEvent(this, "connect");
   }
@@ -53,7 +60,7 @@ export class GbxClient extends Events {
     this.socket?.on("data", (data) => {
       if (this.isConnected === false) {
         const headerSize = data.readUIntLE(0, 4);
-        const header = data.slice(4).toString();
+        const header = data.slice(4).toString("utf-8");
         if (header.length !== headerSize && header !== "GBXRemote 2") {
           this.socket?.destroy();
           this.isConnected = false;
@@ -65,26 +72,35 @@ export class GbxClient extends Events {
         return;
       }
 
-      // const responseLength = data.readUInt32LE(0);
-      const requestHandle = data.readUInt32LE(4);
-      const response = data.slice(8).toString();
-      // console.log(responseLength, requestHandle, response);
-      const deserializer = new Deserializer();
-      if (requestHandle > 0x80000000) {
-        deserializer.deserializeMethodResponse(
-          Readable.from(response),
-          (err: any, res: any) => {
-            this.emit(`response:${requestHandle}`, [res, err]);
-          }
-        );
-      } else {
-        deserializer.deserializeMethodCall(
-          Readable.from(response),
-          (err: any, method: any, res: any) => {
-            this.emit("callback", method, res);
-            this.emit(method, res);
-          }
-        );
+      if (this.responseLength == null && this.recvData == null) {
+        this.responseLength = data.readUInt32LE(0);
+        this.requestHandle = data.readUInt32LE(4);
+        this.recvData = data.slice(8);
+      } else if (this.recvData !== null) {        
+        this.recvData = Buffer.concat([this.recvData, data]);
+      }
+
+      if (this.responseLength && this.recvData != null && this.recvData.length >= this.responseLength) {        
+        const response = this.recvData;
+        this.recvData = null;
+        this.responseLength = null;
+        const deserializer = new Deserializer();
+        if (this.requestHandle > 0x80000000) {
+          deserializer.deserializeMethodResponse(
+            Readable.from(response),
+            (err: any, res: any) => {
+              this.emit(`response:${this.requestHandle}`, [res, err]);
+            }
+          );
+        } else {
+          deserializer.deserializeMethodCall(
+            Readable.from(response),
+            (err: any, method: any, res: any) => {
+              this.emit("callback", method, res);
+              this.emit(method, res);
+            }
+          );
+        }
       }
     });
   }
@@ -151,6 +167,7 @@ export class GbxClient extends Events {
     }
     this.reqHandle++;
     if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;
+
     const len = Buffer.byteLength(xml);
     const buf = Buffer.alloc(8 + len);
     buf.writeInt32LE(len, 0);
