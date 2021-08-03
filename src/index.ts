@@ -15,6 +15,7 @@ export class GbxClient extends Events {
   recvData: null | Buffer;
   responseLength: null | number;
   requestHandle: number;
+  dataPointer: number;
 
   /**
    * Creates an instance of GbxClient.
@@ -30,6 +31,7 @@ export class GbxClient extends Events {
     this.recvData = null;
     this.responseLength = null;
     this.requestHandle = 0;
+    this.dataPointer = 0;
   }
 
   /**
@@ -58,7 +60,7 @@ export class GbxClient extends Events {
     });
 
     this.socket?.on("data", (data) => {
-      if (this.isConnected === false) {
+      if (!this.isConnected) {
         const headerSize = data.readUIntLE(0, 4);
         const header = data.slice(4).toString("utf-8");
         if (header.length !== headerSize && header !== "GBXRemote 2") {
@@ -70,39 +72,56 @@ export class GbxClient extends Events {
         this.isConnected = true;
         this.emit("connect", true);
         return;
+      } else {
+        this.extractAndHandle(data);
       }
+    });
+  }
 
+  private extractAndHandle(data: Buffer): void {
+    this.dataPointer = 0;
+
+    do {
       if (this.responseLength == null && this.recvData == null) {
-        this.responseLength = data.readUInt32LE(0);
-        this.requestHandle = data.readUInt32LE(4);
-        this.recvData = data.slice(8);
-      } else if (this.recvData !== null) {        
-        this.recvData = Buffer.concat([this.recvData, data]);
+        this.responseLength = data.readUInt32LE(this.dataPointer);
+        this.requestHandle = data.readUInt32LE(this.dataPointer + 4);
+
+        const endOfMessage = this.dataPointer + 8 + this.responseLength;
+
+        this.recvData = data.slice(this.dataPointer, endOfMessage);
+
+        this.dataPointer = endOfMessage;
+      } else if (this.recvData !== null) {
+        const backup = this.recvData;
+        this.recvData = null;
+        this.responseLength = null;
+        return this.extractAndHandle(Buffer.concat([backup, data]));
       }
 
-      if (this.responseLength && this.recvData != null && this.recvData.length >= this.responseLength) {        
-        const response = this.recvData;
+
+      if (this.responseLength && this.recvData != null && this.recvData.length >= this.responseLength + 8) {
+        const response = this.recvData.slice(8);
         this.recvData = null;
         this.responseLength = null;
         const deserializer = new Deserializer();
         if (this.requestHandle > 0x80000000) {
           deserializer.deserializeMethodResponse(
-            Readable.from(response),
-            (err: any, res: any) => {
-              this.emit(`response:${this.requestHandle}`, [res, err]);
-            }
+              Readable.from(response),
+              (err: any, res: any) => {
+                this.emit(`response:${this.requestHandle}`, [res, err]);
+              }
           );
         } else {
           deserializer.deserializeMethodCall(
-            Readable.from(response),
-            (err: any, method: any, res: any) => {
-              this.emit("callback", method, res);
-              this.emit(method, res);
-            }
+              Readable.from(response),
+              (err: any, method: any, res: any) => {
+                this.emit("callback", method, res);
+                this.emit(method, res);
+              }
           );
         }
       }
-    });
+    } while (this.dataPointer < data.length);
   }
 
   /**

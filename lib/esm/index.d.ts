@@ -9,6 +9,7 @@ export declare class GbxClient extends Events {
     recvData: null | Buffer;
     responseLength: null | number;
     requestHandle: number;
+    dataPointer: number;
     /**
      * Creates an instance of GbxClient.
      * @memberof GbxClient
@@ -26,6 +27,7 @@ export declare class GbxClient extends Events {
      */
     connect(host?: string, port?: number): Promise<boolean>;
     private setupListeners;
+    private extractAndHandle;
     /**
      * execute a xmlrpc method call on a server
      *
