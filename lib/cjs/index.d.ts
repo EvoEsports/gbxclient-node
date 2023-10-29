@@ -4,6 +4,7 @@ export declare class GbxClient extends Events {
     host: string;
     port: number;
     isConnected: boolean;
+    doHandShake: boolean;
     reqHandle: number;
     private socket;
     recvData: null | Buffer;
@@ -25,9 +26,8 @@ export declare class GbxClient extends Events {
     * @returns {Promise<boolean>}
     * @memberof GbxClient
     */
-    connect(host?: string, port?: number): Promise<Boolean>;
+    connect(host?: string, port?: number): void;
     private tryReconnect;
-    private setupListeners;
     private extractAndHandle;
     /**
     * execute a xmlrpc method call on a server
