@@ -5,14 +5,14 @@ Trackmania dedicated server xmlrpc client for nodejs using await/async interface
     npm install @evotm/gbxclient --save
 
 # Example
-```typescript
+```js
 import { GbxClient } from "@evotm/gbxclient";
 const port = 5000;
 
 async function main() {
   const gbx = new GbxClient();
+  gbx.connect("127.0.0.1", port);
 
-  // you shuold define callbacks first
   gbx.on("connect", async () => {
     console.log("connected!");
     await gbx.call("SetApiVersion", "2013-04-16");
@@ -54,8 +54,6 @@ async function main() {
     }, 5000);
   });
 
-  // connect should be like the last instruction
-  await gbx.connect("127.0.0.1", port);
 }
 
 main();
