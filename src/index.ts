@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { EventEmitter as Events } from "events";
 import * as net from "net";
 
@@ -13,7 +14,7 @@ export class GbxClient extends Events {
     doHandShake: boolean;
     reqHandle: number;
     private socket: net.Socket | null;
-    recvData: null | Buffer;
+    recvData: Buffer;
     responseLength: null | number;
     requestHandle: number;
     dataPointer: number;
@@ -29,7 +30,7 @@ export class GbxClient extends Events {
         this.host = "";
         this.port = 5000;
         this.socket = null;
-        this.recvData = null;
+        this.recvData = Buffer.alloc(0);
         this.responseLength = null;
         this.requestHandle = 0;
         this.dataPointer = 0;
@@ -46,7 +47,7 @@ export class GbxClient extends Events {
     * @returns {Promise<boolean>}
     * @memberof GbxClient
     */
-    connect(host?: string, port?: number): void {
+    async connect(host?: string, port?: number): Promise<Boolean> {
         this.host = host || "127.0.0.1";
         this.port = port || 5000;
         this.socket = net.connect(this.port, this.host);
@@ -66,75 +67,54 @@ export class GbxClient extends Events {
             this.emit("disconnect");
             this.socket = null;
         });
-        let partial = false;
         this.socket?.on("data", (data) => {
-            if (!this.isConnected) {
-                const headerSize = data.readUIntLE(0, 4);
-                let header = data.slice(4).toString("utf-8");
-                if (partial == false && headerSize == 11 && header === '') {
-                    partial = true;
-                    return;
-                }
-                if (partial) header = data.toString("utf-8");
-                if (header == "GBXRemote 2") {
-                    this.isConnected = true;
-                    setImmediate(() => this.emit("connect"));
-                    return;
-                }
-                this.socket?.destroy();
-                this.isConnected = false;
-                this.socket = null;
-                this.emit("disconnect");
-                return;
-            } else {
-                this.extractAndHandle(data);
-            }
+            this.handleData(data);
         });
+        return await fromEvent(this, "connect");
     }
 
     private tryReconnect() {
         this.connect(this.host, this.port);
     }
 
-    private extractAndHandle(data: Buffer): void {
-        this.dataPointer = 0;
-
-        do {
-            if (this.responseLength == null && this.recvData == null) {
-                this.responseLength = data.readUInt32LE(this.dataPointer);
-                this.requestHandle = data.readUInt32LE(this.dataPointer + 4);
-
-                const endOfMessage = this.dataPointer + 8 + this.responseLength;
-
-                this.recvData = data.slice(this.dataPointer, endOfMessage);
-
-                this.dataPointer = endOfMessage;
-            } else if (this.recvData !== null) {
-                const backup = this.recvData;
-                this.recvData = null;
-                this.responseLength = null;
-                return this.extractAndHandle(Buffer.concat([backup, data]));
+    private handleData(data: Buffer): void {
+        this.recvData = Buffer.concat([this.recvData, data]);
+        if (this.recvData.length > 0 && this.responseLength == null) {
+            this.responseLength = this.recvData.readUInt32LE();
+            if (this.isConnected) this.responseLength += 4;
+            this.recvData = this.recvData.subarray(4);
+        }
+        if (this.responseLength && this.recvData.length >= this.responseLength) {
+            let data = this.recvData.subarray(0, this.responseLength);
+            if (this.recvData.length > this.responseLength) {
+                this.recvData = this.recvData.subarray(this.responseLength);
+            } else {
+                this.recvData = Buffer.alloc(0);
             }
-
-            if (
-                this.responseLength &&
-                this.recvData != null &&
-                this.recvData.length >= this.responseLength + 8
-            ) {
-                const response = this.recvData.slice(8);
-                this.recvData = null;
-                this.responseLength = null;
+            if (!this.isConnected) {
+                if (data.toString('utf-8') == "GBXRemote 2") {
+                    this.isConnected = true;
+                    setImmediate(() => this.emit("connect", true));
+                } else {
+                    this.socket?.destroy();
+                    this.isConnected = false;
+                    this.socket = null;
+                    setImmediate(() => this.emit("connect", false));
+                    this.emit("disconnect");
+                }
+            } else {
                 const deserializer = new Deserializer();
+                this.requestHandle = data.readUInt32LE();                
                 if (this.requestHandle > 0x80000000) {
                     deserializer.deserializeMethodResponse(
-                        Readable.from(response),
+                        Readable.from(data.subarray(4)),
                         (err: any, res: any) => {
                             this.emit(`response:${this.requestHandle}`, [res, err]);
                         }
                     );
                 } else {
                     deserializer.deserializeMethodCall(
-                        Readable.from(response),
+                        Readable.from(data.subarray(4)),
                         (err: any, method: any, res: any) => {
                             this.emit("callback", method, res);
                             this.emit(method, res);
@@ -142,7 +122,9 @@ export class GbxClient extends Events {
                     );
                 }
             }
-        } while (this.dataPointer < data.length);
+            this.responseLength = null;
+            this.handleData(Buffer.alloc(0));
+        }
     }
 
     /**
@@ -217,7 +199,7 @@ export class GbxClient extends Events {
         const response = await fromEvent(this, `response:${this.reqHandle}`);
 
         if (response[1]) {
-            throw response[1];
+            throw new Error(response[1].message);
         }
 
         return response[0];
