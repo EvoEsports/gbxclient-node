@@ -47,34 +47,29 @@ export class GbxClient extends Events {
     * @returns {Promise<boolean>}
     * @memberof GbxClient
     */
-    async connect(host?: string, port?: number): Promise<Boolean> {
+    async connect(host?: string, port?: number): Promise<boolean> {
         this.host = host || "127.0.0.1";
         this.port = port || 5000;
         this.socket = net.connect(this.port, this.host);
         this.socket.setKeepAlive(true);
         this.socket.on("error", (error) => {
-            console.error("Client socket error:", error.message);
-            console.error("Retrying connection in 5 seconds.");
             this.socket?.destroy();
+            this.socket = null;
             this.isConnected = false;
-            setTimeout(() => {
-                this.tryReconnect();
-            }, 5000);
+            this.emit("disconnect", error.message);
+            this.emit("connect", false);
         });
         this.socket.on("end", () => {
             this.isConnected = false;
             this.socket?.destroy();
-            this.emit("disconnect");
+            this.emit("disconnect", "Connection closed.");
+            this.emit("connect", false);
             this.socket = null;
         });
         this.socket?.on("data", (data) => {
             this.handleData(data);
         });
         return await fromEvent(this, "connect");
-    }
-
-    private tryReconnect() {
-        this.connect(this.host, this.port);
     }
 
     private handleData(data: Buffer): void {
@@ -84,6 +79,7 @@ export class GbxClient extends Events {
             if (this.isConnected) this.responseLength += 4;
             this.recvData = this.recvData.subarray(4);
         }
+
         if (this.responseLength && this.recvData.length >= this.responseLength) {
             let data = this.recvData.subarray(0, this.responseLength);
             if (this.recvData.length > this.responseLength) {
@@ -104,18 +100,24 @@ export class GbxClient extends Events {
                 }
             } else {
                 const deserializer = new Deserializer();
-                this.requestHandle = data.readUInt32LE();                
-                if (this.requestHandle > 0x80000000) {
+                const requestHandle = data.readUInt32LE();
+                if (requestHandle > 0x80000000) {
                     deserializer.deserializeMethodResponse(
                         Readable.from(data.subarray(4)),
                         (err: any, res: any) => {
-                            this.emit(`response:${this.requestHandle}`, [res, err]);
+                            if (err) {
+                                throw new Error(err.message);
+                            }
+                            this.emit(`response:${requestHandle}`, [res, err]);
                         }
                     );
                 } else {
                     deserializer.deserializeMethodCall(
                         Readable.from(data.subarray(4)),
                         (err: any, method: any, res: any) => {
+                            if (err) {
+                                throw new Error(err.message);
+                            }
                             this.emit("callback", method, res);
                             this.emit(method, res);
                         }
@@ -136,6 +138,7 @@ export class GbxClient extends Events {
     * @memberof GbxClient
     */
     async call(method: string, ...params: any) {
+        if (!this.isConnected) { return undefined }
         const xml = Serializer.serializeMethodCall(method, params);
         return await this.query(xml);
     }
@@ -149,6 +152,7 @@ export class GbxClient extends Events {
     * @memberof GbxClient
     */
     async callScript(method: string, ...params: any) {
+        if (!this.isConnected) { return undefined }
         return await this.call("TriggerModeScriptEventArray", method, params);
     }
 
@@ -166,6 +170,7 @@ export class GbxClient extends Events {
     * @memberof GbxClient
     */
     async multicall(methods: Array<any>) {
+        if (!this.isConnected) { return undefined }
         const params: any = [];
         for (let method of methods) {
             params.push({ methodName: method.shift(), params: method });
@@ -188,16 +193,15 @@ export class GbxClient extends Events {
             );
         }
         this.reqHandle++;
-        if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;
-
+        if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;        
+        const handle = this.reqHandle;
         const len = Buffer.byteLength(xml);
         const buf = Buffer.alloc(8 + len);
         buf.writeInt32LE(len, 0);
-        buf.writeUInt32LE(this.reqHandle, 4);
+        buf.writeUInt32LE(handle, 4);
         buf.write(xml, 8);
         this.socket?.write(buf, "utf8");
-        const response = await fromEvent(this, `response:${this.reqHandle}`);
-
+        const response = await fromEvent(this, `response:${handle}`);
         if (response[1]) {
             throw new Error(response[1].message);
         }

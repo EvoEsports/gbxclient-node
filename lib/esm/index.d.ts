@@ -26,8 +26,7 @@ export declare class GbxClient extends Events {
     * @returns {Promise<boolean>}
     * @memberof GbxClient
     */
-    connect(host?: string, port?: number): Promise<Boolean>;
-    private tryReconnect;
+    connect(host?: string, port?: number): Promise<boolean>;
     private handleData;
     /**
     * execute a xmlrpc method call on a server
@@ -60,7 +59,7 @@ export declare class GbxClient extends Events {
     * @returns Array<any>
     * @memberof GbxClient
     */
-    multicall(methods: Array<any>): Promise<any[]>;
+    multicall(methods: Array<any>): Promise<any[] | undefined>;
     private query;
     /**
     * Disconnect
