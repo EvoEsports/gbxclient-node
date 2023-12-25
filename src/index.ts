@@ -104,10 +104,7 @@ export class GbxClient extends Events {
                 if (requestHandle > 0x80000000) {
                     deserializer.deserializeMethodResponse(
                         Readable.from(data.subarray(4)),
-                        (err: any, res: any) => {
-                            if (err) {
-                                throw new Error(err.message);
-                            }
+                        (err: any, res: any) => {                            
                             this.emit(`response:${requestHandle}`, [res, err]);
                         }
                     );
@@ -115,9 +112,7 @@ export class GbxClient extends Events {
                     deserializer.deserializeMethodCall(
                         Readable.from(data.subarray(4)),
                         (err: any, method: any, res: any) => {
-                            if (err) {
-                                throw new Error(err.message);
-                            }
+                            console.log(err.message);
                             this.emit("callback", method, res);
                             this.emit(method, res);
                         }
@@ -139,9 +134,13 @@ export class GbxClient extends Events {
     */
     async call(method: string, ...params: any) {
         if (!this.isConnected) { return undefined }
-        const xml = Serializer.serializeMethodCall(method, params);
-        return await this.query(xml);
-    }
+		try {
+			const xml = Serializer.serializeMethodCall(method, params);
+			return await this.query(xml);
+		} catch (err:any) {
+			throw new Error(err.message);
+		}
+	}
 
     /**
     * execute a script method call
@@ -203,7 +202,7 @@ export class GbxClient extends Events {
         this.socket?.write(buf, "utf8");
         const response = await fromEvent(this, `response:${handle}`);
         if (response[1]) {
-            throw new Error(response[1].message);
+            throw response[1];
         }
 
         return response[0];
