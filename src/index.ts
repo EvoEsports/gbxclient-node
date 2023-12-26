@@ -7,6 +7,11 @@ const Serializer = require("xmlrpc/lib/serializer");
 const Deserializer = require("xmlrpc/lib/deserializer");
 const { fromEvent } = require("promise-toolbox");
 
+interface Options {
+    showErrors?: boolean;
+    throwErrors?: boolean;
+}
+
 export class GbxClient extends Events {
     host: string;
     port: number;
@@ -18,12 +23,13 @@ export class GbxClient extends Events {
     responseLength: null | number;
     requestHandle: number;
     dataPointer: number;
+    options: Options;
 
     /**
     * Creates an instance of GbxClient.
     * @memberof GbxClient
     */
-    public constructor() {
+    public constructor(options: Options = { showErrors: false, throwErrors: true }) {
         super();
         this.isConnected = false;
         this.reqHandle = 0x80000000;
@@ -35,6 +41,7 @@ export class GbxClient extends Events {
         this.requestHandle = 0;
         this.dataPointer = 0;
         this.doHandShake = false;
+        this.options = options;
     }
 
     /**
@@ -87,6 +94,7 @@ export class GbxClient extends Events {
             } else {
                 this.recvData = Buffer.alloc(0);
             }
+
             if (!this.isConnected) {
                 if (data.toString('utf-8') == "GBXRemote 2") {
                     this.isConnected = true;
@@ -101,10 +109,10 @@ export class GbxClient extends Events {
             } else {
                 const deserializer = new Deserializer();
                 const requestHandle = data.readUInt32LE();
-                if (requestHandle > 0x80000000) {
+                if (requestHandle >= 0x80000000) {
                     deserializer.deserializeMethodResponse(
                         Readable.from(data.subarray(4)),
-                        (err: any, res: any) => {                            
+                        (err: any, res: any) => {
                             this.emit(`response:${requestHandle}`, [res, err]);
                         }
                     );
@@ -112,15 +120,18 @@ export class GbxClient extends Events {
                     deserializer.deserializeMethodCall(
                         Readable.from(data.subarray(4)),
                         (err: any, method: any, res: any) => {
-                            console.log(err.message);
-                            this.emit("callback", method, res);
-                            this.emit(method, res);
+                            if (err) {
+                                if (this.options.showErrors) console.error(err);
+                            } else {
+                                this.emit("callback", method, res);
+                                this.emit(method, res);
+                            }
                         }
                     );
                 }
             }
             this.responseLength = null;
-            this.handleData(Buffer.alloc(0));
+            return this.handleData(Buffer.alloc(0));
         }
     }
 
@@ -134,13 +145,19 @@ export class GbxClient extends Events {
     */
     async call(method: string, ...params: any) {
         if (!this.isConnected) { return undefined }
-		try {
-			const xml = Serializer.serializeMethodCall(method, params);
-			return await this.query(xml);
-		} catch (err:any) {
-			throw new Error(err.message);
-		}
-	}
+        try {
+            const xml = Serializer.serializeMethodCall(method, params);
+            return await this.query(xml);
+        } catch (err: any) {
+            if (this.options.showErrors) {
+                console.error("[ERROR] gbxclient >" + err.message);
+            }
+            if (this.options.throwErrors) {
+                throw new Error(err.message);
+            }
+            return undefined;
+        }
+    }
 
     /**
     * execute a script method call
@@ -192,7 +209,7 @@ export class GbxClient extends Events {
             );
         }
         this.reqHandle++;
-        if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;        
+        if (this.reqHandle >= 0xffffff00) this.reqHandle = 0x80000000;
         const handle = this.reqHandle;
         const len = Buffer.byteLength(xml);
         const buf = Buffer.alloc(8 + len);
@@ -202,9 +219,14 @@ export class GbxClient extends Events {
         this.socket?.write(buf, "utf8");
         const response = await fromEvent(this, `response:${handle}`);
         if (response[1]) {
-            throw response[1];
+            if (this.options.showErrors) {
+                console.error(response[1].faultString ? "[ERROR] gbxclient > " + response[1].faultString : response[1]);
+            }
+            if (this.options.throwErrors) {
+                throw response[1];
+            }
+            return undefined;
         }
-
         return response[0];
     }
 
