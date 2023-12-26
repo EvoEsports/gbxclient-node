@@ -1,5 +1,9 @@
 /// <reference types="node" />
 import { EventEmitter as Events } from "events";
+interface Options {
+    showErrors?: boolean;
+    throwErrors?: boolean;
+}
 export declare class GbxClient extends Events {
     host: string;
     port: number;
@@ -11,11 +15,12 @@ export declare class GbxClient extends Events {
     responseLength: null | number;
     requestHandle: number;
     dataPointer: number;
+    options: Options;
     /**
     * Creates an instance of GbxClient.
     * @memberof GbxClient
     */
-    constructor();
+    constructor(options?: Options);
     /**
     * Connects to trackmania server
     * Supports currently Trackmanias with GBXRemote 2 protocol:
@@ -69,3 +74,4 @@ export declare class GbxClient extends Events {
     */
     disconnect(): Promise<true>;
 }
+export {};
