@@ -1,6 +1,6 @@
 {
   "name": "@evotm/gbxclient",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "Trackmania dedicated server remote xmlrpc client",
   "keywords": [
     "xmlrpc",

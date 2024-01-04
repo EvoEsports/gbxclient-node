@@ -1,7 +1,6 @@
 import { Buffer } from "buffer";
 import { EventEmitter as Events } from "events";
 import * as net from "net";
-
 import { Readable } from "stream";
 const Serializer = require("xmlrpc/lib/serializer");
 const Deserializer = require("xmlrpc/lib/deserializer");
@@ -73,7 +72,7 @@ export class GbxClient extends Events {
             this.emit("connect", false);
             this.socket = null;
         });
-        this.socket?.on("data", (data) => {
+        this.socket.on("data", (data) => {
             this.handleData(data);
         });
         return await fromEvent(this, "connect");
@@ -107,7 +106,7 @@ export class GbxClient extends Events {
                     this.emit("disconnect");
                 }
             } else {
-                const deserializer = new Deserializer();
+                const deserializer = new Deserializer("utf-8");
                 const requestHandle = data.readUInt32LE();
                 if (requestHandle >= 0x80000000) {
                     deserializer.deserializeMethodResponse(
@@ -131,8 +130,10 @@ export class GbxClient extends Events {
                 }
             }
             this.responseLength = null;
-            return this.handleData(Buffer.alloc(0));
+            if (this.recvData.length > 0) return this.handleData(Buffer.alloc(0));
+            return;
         }
+        return;
     }
 
     /**
@@ -147,7 +148,31 @@ export class GbxClient extends Events {
         if (!this.isConnected) { return undefined }
         try {
             const xml = Serializer.serializeMethodCall(method, params);
-            return await this.query(xml);
+            return await this.query(xml, true);
+        } catch (err: any) {
+            if (this.options.showErrors) {
+                console.error("[ERROR] gbxclient >" + err.message);
+            }
+            if (this.options.throwErrors) {
+                throw new Error(err);
+            }
+            return undefined;
+        }
+    }
+
+    /**
+    * execute a xmlrpc method call on a server
+    *
+    * @param {string} method
+    * @param {...any} params
+    * @returns any
+    * @memberof GbxClient
+    */
+    send(method: string, ...params: any) {
+        if (!this.isConnected) { return undefined }
+        try {
+            const xml = Serializer.serializeMethodCall(method, params);
+            return this.query(xml, false);
         } catch (err: any) {
             if (this.options.showErrors) {
                 console.error("[ERROR] gbxclient >" + err.message);
@@ -156,8 +181,9 @@ export class GbxClient extends Events {
                 throw new Error(err.message);
             }
             return undefined;
-        }
+        }        
     }
+
 
     /**
     * execute a script method call
@@ -195,13 +221,13 @@ export class GbxClient extends Events {
         const xml = Serializer.serializeMethodCall("system.multicall", [params]);
 
         const out = [];
-        for (let answer of await this.query(xml)) {
+        for (let answer of await this.query(xml, true)) {
             out.push(answer[0]);
         }
         return out;
     }
 
-    private async query(xml: string) {
+    private async query(xml: string, wait: boolean = true) {
         // if request is more than 4mb
         if (xml.length + 8 > 4 * 1024 * 1024) {
             throw new Error(
@@ -216,18 +242,24 @@ export class GbxClient extends Events {
         buf.writeInt32LE(len, 0);
         buf.writeUInt32LE(handle, 4);
         buf.write(xml, 8);
-        this.socket?.write(buf, "utf8");
-        const response = await fromEvent(this, `response:${handle}`);
-        if (response[1]) {
-            if (this.options.showErrors) {
-                console.error(response[1].faultString ? "[ERROR] gbxclient > " + response[1].faultString : response[1]);
+        this.socket?.write(buf);
+        if (wait) {
+            const response = await fromEvent(this, `response:${handle}`);
+            this.removeAllListeners(`response:${handle}`);
+
+            if (response[1]) {
+                if (this.options.showErrors) {
+                    console.error(response[1].faultString ? "[ERROR] gbxclient > " + response[1].faultString : response[1]);
+                }
+                if (this.options.throwErrors) {
+                    throw response[1];
+                }
+                return undefined;
             }
-            if (this.options.throwErrors) {
-                throw response[1];
-            }
-            return undefined;
+            return response[0];
         }
-        return response[0];
+        this.removeAllListeners(`response:${handle}`);
+        return {};
     }
 
     /**

@@ -43,6 +43,15 @@ export declare class GbxClient extends Events {
     */
     call(method: string, ...params: any): Promise<any>;
     /**
+    * execute a xmlrpc method call on a server
+    *
+    * @param {string} method
+    * @param {...any} params
+    * @returns any
+    * @memberof GbxClient
+    */
+    send(method: string, ...params: any): Promise<any> | undefined;
+    /**
     * execute a script method call
     *
     * @param {string} method
