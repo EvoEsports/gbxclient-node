@@ -1,10 +1,11 @@
 import { Buffer } from "buffer";
 import { EventEmitter as Events } from "events";
 import * as net from "net";
-import { Readable } from "stream";
-const Serializer = require("xmlrpc/lib/serializer");
-const Deserializer = require("xmlrpc/lib/deserializer");
-const { fromEvent } = require("promise-toolbox");
+import {Readable} from 'stream';
+// @ts-ignore
+import Serializer from "xmlrpc/lib/serializer";
+// @ts-ignore
+import Deserializer from "xmlrpc/lib/deserializer";
 
 interface Options {
     showErrors?: boolean;
@@ -23,6 +24,7 @@ export class GbxClient extends Events {
     requestHandle: number;
     dataPointer: number;
     options: Options;
+    promiseCallbacks: { [key: string]: any } = {};
 
     /**
     * Creates an instance of GbxClient.
@@ -35,7 +37,7 @@ export class GbxClient extends Events {
         this.host = "";
         this.port = 5000;
         this.socket = null;
-        this.recvData = Buffer.alloc(0);
+        this.recvData = Buffer.from([]);
         this.responseLength = null;
         this.requestHandle = 0;
         this.dataPointer = 0;
@@ -72,10 +74,15 @@ export class GbxClient extends Events {
             this.emit("connect", false);
             this.socket = null;
         });
-        this.socket.on("data", (data) => {
+        this.socket.on("data", (data) => {            
             this.handleData(data);
         });
-        return await fromEvent(this, "connect");
+        const res: boolean = await new Promise((resolve, reject) => {
+            this.promiseCallbacks['onConnect'] = {resolve, reject};
+        });
+
+        delete this.promiseCallbacks['onConnect'];
+        return res;
     }
 
     private handleData(data: Buffer): void {
@@ -91,33 +98,36 @@ export class GbxClient extends Events {
             if (this.recvData.length > this.responseLength) {
                 this.recvData = this.recvData.subarray(this.responseLength);
             } else {
-                this.recvData = Buffer.alloc(0);
+                this.recvData = Buffer.from([]);
             }
 
             if (!this.isConnected) {
                 if (data.toString('utf-8') == "GBXRemote 2") {
                     this.isConnected = true;
-                    setImmediate(() => this.emit("connect", true));
+                    this.promiseCallbacks['onConnect']?.resolve(true);
                 } else {
                     this.socket?.destroy();
                     this.isConnected = false;
                     this.socket = null;
-                    setImmediate(() => this.emit("connect", false));
-                    this.emit("disconnect");
+                    this.promiseCallbacks['onConnect']?.reject(false);
+                    this.emit("disconnect", "GBXRemote 2 protocol not supported");
                 }
             } else {
                 const deserializer = new Deserializer("utf-8");
                 const requestHandle = data.readUInt32LE();
+                const readable = Readable.from(data.subarray(4));
                 if (requestHandle >= 0x80000000) {
                     deserializer.deserializeMethodResponse(
-                        Readable.from(data.subarray(4)),
+                        readable,
                         (err: any, res: any) => {
-                            this.emit(`response:${requestHandle}`, [res, err]);
+                            if (this.promiseCallbacks[requestHandle]) {
+                                this.promiseCallbacks[requestHandle].resolve([res, err]);
+                            }
                         }
                     );
                 } else {
                     deserializer.deserializeMethodCall(
-                        Readable.from(data.subarray(4)),
+                       readable,
                         (err: any, method: any, res: any) => {
                             if (err) {
                                 if (this.options.showErrors) console.error(err);
@@ -212,10 +222,12 @@ export class GbxClient extends Events {
     * @memberof GbxClient
     */
     async multicall(methods: Array<any>) {
-        if (!this.isConnected) { return undefined }
+        if (!this.isConnected) {
+            return undefined
+        }
         const params: any = [];
         for (let method of methods) {
-            params.push({ methodName: method.shift(), params: method });
+            params.push({methodName: method.shift(), params: method});
         }
 
         const xml = Serializer.serializeMethodCall("system.multicall", [params]);
@@ -244,9 +256,10 @@ export class GbxClient extends Events {
         buf.write(xml, 8);
         this.socket?.write(buf);
         if (wait) {
-            const response = await fromEvent(this, `response:${handle}`);
-            this.removeAllListeners(`response:${handle}`);
-
+            const response = await new Promise<any>((resolve, reject) => {
+                this.promiseCallbacks[handle] = {resolve, reject};
+            })
+            delete this.promiseCallbacks[handle];
             if (response[1]) {
                 if (this.options.showErrors) {
                     console.error(response[1].faultString ? "[ERROR] gbxclient > " + response[1].faultString : response[1]);

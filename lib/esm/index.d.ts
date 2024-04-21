@@ -1,4 +1,6 @@
 /// <reference types="node" />
+/// <reference types="node" />
+import { Buffer } from "buffer";
 import { EventEmitter as Events } from "events";
 interface Options {
     showErrors?: boolean;
@@ -16,6 +18,9 @@ export declare class GbxClient extends Events {
     requestHandle: number;
     dataPointer: number;
     options: Options;
+    promiseCallbacks: {
+        [key: string]: any;
+    };
     /**
     * Creates an instance of GbxClient.
     * @memberof GbxClient

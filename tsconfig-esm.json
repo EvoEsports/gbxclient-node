@@ -1,13 +1,19 @@
 {
     "compilerOptions": {
-      "target": "ES2015",
-      "module": "ES2020",
-      "strict": true,
-      "esModuleInterop": true,
-      "forceConsistentCasingInFileNames": true,
-      "outDir": "./lib/esm",
+        "target": "ES2015",
+        "module": "ES2020",
+        "strict": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "outDir": "./lib/esm",
+        "paths": {
+            // This is solely to stop a bug with @types/node as of 12/15/2023
+            "undici-types": [
+                "./node_modules/undici-types/index.d.ts"
+            ],
+        }
     },
     "include": [
-      "./src"
+        "./src"
     ]
-  }
+}

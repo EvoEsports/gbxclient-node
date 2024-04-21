@@ -1,21 +1,28 @@
 {
-  "compilerOptions": {
-    "lib": ["es2019", "es2020.promise", "es2020.bigint", "es2020.string"],
-    "module": "commonjs",
-    "target": "es2019",
-    "declaration": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,        
-    "outDir": "./lib/cjs"
-  },
-  "include": [
-    "src/"
-  ],
-  "exclude": [
-    "./test/*",
-    "./lib",
-    "node_modules"
-  ]
+    "compilerOptions": {
+        "lib": ["es2019", "es2020.promise", "es2020.bigint", "es2020.string"],
+        "module": "NodeNext",
+        "target": "ES2019",
+        "moduleResolution": "NodeNext",
+        "declaration": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "strict": true,  
+        "outDir": "./lib/cjs",
+        "paths": {
+            // This is solely to stop a bug with @types/node as of 12/15/2023
+            "undici-types": [
+                "./node_modules/undici-types/index.d.ts"
+            ],
+        }
+    },
+    "include": [
+        "src/"
+    ],
+    "exclude": [
+        "./test/*",
+        "./lib",
+        "node_modules"
+    ],      
 }
