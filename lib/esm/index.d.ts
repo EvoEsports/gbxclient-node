@@ -1,91 +1,49 @@
-/// <reference types="node" />
-/// <reference types="node" />
-import { Buffer } from "buffer";
-import { EventEmitter as Events } from "events";
-interface Options {
-    showErrors?: boolean;
-    throwErrors?: boolean;
+import { Gbx } from "./gbx";
+export declare class GbxClient {
+    /**
+     * Gbx instance
+     */
+    gbx: Gbx;
+    /** @ignore */
+    private events;
+    /** @ignore */
+    constructor(options: any);
+    onDisconnect(str: string): void;
+    onCallback(method: string, data: any): Promise<void>;
+    /**
+     * Send request and wait for response
+     * @param method
+     * @param args
+     * @returns
+     */
+    call(method: string, ...args: any): Promise<any>;
+    addListener(method: string, callback: any, obj?: object | undefined): void;
+    on(method: string, callback: any, obj?: object | undefined): void;
+    prependListener(method: string, callback: any, obj?: object | undefined): void;
+    removeListener(method: string, callback: any): void;
+    emit(method: string, ...args: any): void;
+    /**
+     * send request and ignore everything
+     * @param method
+     * @param args
+     * @returns
+     */
+    send(method: string, ...args: any): Promise<any> | undefined;
+    /**
+     * call script method
+     * @param method
+     * @param args
+     * @returns
+     */
+    callScript(method: string, ...args: any): Promise<any>;
+    /** perform multicall */
+    multicall(methods: any[]): Promise<any>;
+    /** perform multicall */
+    multisend(methods: any[]): Promise<undefined>;
+    /**
+     * connect to server
+     * @param host
+     * @param port
+     */
+    connect(host: string, port: number): Promise<boolean>;
 }
-export declare class GbxClient extends Events {
-    host: string;
-    port: number;
-    isConnected: boolean;
-    doHandShake: boolean;
-    reqHandle: number;
-    private socket;
-    recvData: Buffer;
-    responseLength: null | number;
-    requestHandle: number;
-    dataPointer: number;
-    options: Options;
-    promiseCallbacks: {
-        [key: string]: any;
-    };
-    /**
-    * Creates an instance of GbxClient.
-    * @memberof GbxClient
-    */
-    constructor(options?: Options);
-    /**
-    * Connects to trackmania server
-    * Supports currently Trackmanias with GBXRemote 2 protocol:
-    * Trackmania Nations Forever / Maniaplanet / Trackmania 2020
-    *
-    * @param {string} [host]
-    * @param {number} [port]
-    * @returns {Promise<boolean>}
-    * @memberof GbxClient
-    */
-    connect(host?: string, port?: number): Promise<boolean>;
-    private handleData;
-    /**
-    * execute a xmlrpc method call on a server
-    *
-    * @param {string} method
-    * @param {...any} params
-    * @returns any
-    * @memberof GbxClient
-    */
-    call(method: string, ...params: any): Promise<any>;
-    /**
-    * execute a xmlrpc method call on a server
-    *
-    * @param {string} method
-    * @param {...any} params
-    * @returns any
-    * @memberof GbxClient
-    */
-    send(method: string, ...params: any): Promise<any> | undefined;
-    /**
-    * execute a script method call
-    *
-    * @param {string} method
-    * @param {...any} params
-    * @returns any
-    * @memberof GbxClient
-    */
-    callScript(method: string, ...params: any): Promise<any>;
-    /**
-    * perform a multicall
-    *
-    * @example await gbx.multicall([
-    *                              ["Method1", param1, param2, ...],
-    *                              ["Method2", param1, param2, ...],
-    *                              ...
-    *                              ])
-    *
-    * @param {Array<any>} methods
-    * @returns Array<any>
-    * @memberof GbxClient
-    */
-    multicall(methods: Array<any>): Promise<any[] | undefined>;
-    private query;
-    /**
-    * Disconnect
-    *
-    * @returns Promise<true>
-    * @memberof GbxClient
-    */
-    disconnect(): Promise<true>;
-}
-export {};
