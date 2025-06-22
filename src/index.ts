@@ -16,6 +16,10 @@ export class GbxClient {
         this.gbx = new Gbx(this, options);
     }
 
+    get isConnected(): boolean {
+        return this.gbx.isConnected;
+    }
+
     onDisconnect(str: string) {
         this.events.emit("disconnect", str);
     }

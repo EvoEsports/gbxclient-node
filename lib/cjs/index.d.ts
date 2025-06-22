@@ -8,6 +8,7 @@ export declare class GbxClient {
     private events;
     /** @ignore */
     constructor(options?: GbxOptions);
+    get isConnected(): boolean;
     onDisconnect(str: string): void;
     onCallback(method: string, data: any): Promise<void>;
     /**
