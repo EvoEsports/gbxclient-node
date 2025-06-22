@@ -46,4 +46,5 @@ export declare class GbxClient {
      * @param port
      */
     connect(host: string, port: number): Promise<boolean>;
+    disconnect(): Promise<boolean>;
 }

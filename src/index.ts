@@ -129,4 +129,13 @@ export class GbxClient {
         }
         return false;
     }
+
+    async disconnect(): Promise<boolean> {
+        try {
+            return this.gbx.disconnect();
+        } catch (e: any) {
+            console.error(e.message);
+        }
+        return false;
+    }
 }
