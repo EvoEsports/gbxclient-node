@@ -1,4 +1,4 @@
-import { Gbx } from "./gbx";
+import { Gbx, GbxOptions } from "./gbx";
 import EventEmitter from "node:events";
 
 export class GbxClient {
@@ -11,7 +11,7 @@ export class GbxClient {
     private events: EventEmitter = new EventEmitter();
     /** @ignore */
 
-    constructor(options: any) {
+    constructor(options?: GbxOptions) {
         this.events.setMaxListeners(100);
         this.gbx = new Gbx(this, options);
     }

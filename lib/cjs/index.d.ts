@@ -1,4 +1,4 @@
-import { Gbx } from "./gbx";
+import { Gbx, GbxOptions } from "./gbx";
 export declare class GbxClient {
     /**
      * Gbx instance
@@ -7,7 +7,7 @@ export declare class GbxClient {
     /** @ignore */
     private events;
     /** @ignore */
-    constructor(options: any);
+    constructor(options?: GbxOptions);
     onDisconnect(str: string): void;
     onCallback(method: string, data: any): Promise<void>;
     /**
