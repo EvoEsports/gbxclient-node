@@ -73,46 +73,49 @@ export class Gbx {
         const timeout = 5000;
         this.socket = socket;
 
-        socket.connect(
-            {
-                host: host,
-                port: port,
-                keepAlive: true,
-                family: 4,
-            },
-            () => {
-                socket.on("connect", () => {
-                    if (this.timeoutHandler) {
-                        clearTimeout(this.timeoutHandler);
-                        this.timeoutHandler = null;
-                    }
-                });
-                socket.on("end", () => {
-                    this.isConnected = false;
-                    this.server.onDisconnect("end");
-                });
-                socket.on("error", (error: any) => {
-                    this.isConnected = false;
-                    this.server.onDisconnect(error.message);
-                });
-                socket.on("data", async (data: Buffer) => {
-                    if (this.timeoutHandler) {
-                        clearTimeout(this.timeoutHandler);
-                        this.timeoutHandler = null;
-                    }
-                    this.handleData(data);
-                });
-                socket.on("timeout", () => {
-                    console.error("XMLRPC Connection timeout");
-                    process.exit(1);
-                });
+        socket.on("connect", () => {
+            if (this.timeoutHandler) {
+                clearTimeout(this.timeoutHandler);
+                this.timeoutHandler = null;
             }
-        );
+        });
+        socket.on("end", () => {
+            this.isConnected = false;
+            this.server.onDisconnect("end");
+        });
+        socket.on("error", (error: any) => {
+            this.isConnected = false;
+            this.server.onDisconnect(error.message);
+        });
+        socket.on("data", async (data: Buffer) => {
+            if (this.timeoutHandler) {
+                clearTimeout(this.timeoutHandler);
+                this.timeoutHandler = null;
+            }
+            this.handleData(data);
+        });
+        socket.on("timeout", () => {
+            if (this.options.showErrors) {
+                console.error("XMLRPC Connection timeout");
+            }
+            if (this.options.throwErrors) {
+                process.exit(1);
+            }
+        });
+
+        socket.connect({
+            host: host,
+            port: port,
+            keepAlive: true,
+            family: 4,
+        });
 
         this.timeoutHandler = setTimeout(() => {
-            console.error(
-                "[ERROR] Attempt at connection exceeded timeout value."
-            );
+            if (this.options.showErrors) {
+                console.error(
+                    "[ERROR] Attempt at connection exceeded timeout value."
+                );
+            }
             socket.end();
             this.promiseCallbacks["onConnect"]?.reject(
                 new Error("Connection timeout")
@@ -261,7 +264,9 @@ export class Gbx {
         }
         const xml = Serializer.serializeMethodCall(method, params);
         return this.query(xml, false).catch((err: any) => {
-            console.error(`[ERROR] gbxclient > ${err.message}`);
+            if (this.options.showErrors) {
+                console.error(`[ERROR] gbxclient > ${err.message}`);
+            }
         });
     }
 

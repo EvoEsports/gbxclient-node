@@ -1,4 +1,4 @@
-import { Gbx } from "./gbx";
+import { Gbx, GbxOptions } from "./gbx";
 export declare class GbxClient {
     /**
      * Gbx instance
@@ -7,7 +7,8 @@ export declare class GbxClient {
     /** @ignore */
     private events;
     /** @ignore */
-    constructor(options: any);
+    constructor(options?: GbxOptions);
+    get isConnected(): boolean;
     onDisconnect(str: string): void;
     onCallback(method: string, data: any): Promise<void>;
     /**
@@ -46,4 +47,5 @@ export declare class GbxClient {
      * @param port
      */
     connect(host: string, port: number): Promise<boolean>;
+    disconnect(): Promise<boolean>;
 }
